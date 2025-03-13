@@ -12,4 +12,4 @@ Feel free to use, modify, and share these shaders in your projects. Contribution
 
 Here's a brief overview of the shaders included in this collection:
 
-1. **LCD Screen** - Brief description of what this shader does and its main features.
+1. **LCD Screen** -  This shader simulates an LCD screen with realistic rectangular RGB subpixels and proper spacing between individual subpixels and RGB triplet groups.
