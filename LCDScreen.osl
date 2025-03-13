@@ -1,0 +1,149 @@
+/*
+ * LCD Screen Shader for Redshift
+ *
+ * This shader simulates an LCD screen with realistic rectangular RGB subpixels
+ * and proper spacing between individual subpixels and RGB triplet groups.
+ */
+
+#include "stdosl.h"
+
+shader LCDScreenShader(
+    // Input connections
+    color InputColor = color(1.0, 1.0, 1.0) [[ string label = "Input Color" ]],
+
+    // Resolution controls
+    float PixelSizeValue = 0.2 [[ float min = 0.001, float max = 5.0, string label = "Pixel Size Value" ]],
+    float PixelSizeMultiplier = 0.5 [[ float min = 0.1, float max = 10.0, string label = "Pixel Size Multiplier" ]],
+
+    // Subpixel shape controls
+    float SubpixelAspect = 3.0 [[ float min = 1.0, float max = 5.0, string label = "Subpixel Height Ratio" ]],
+
+    // Gap controls
+    float SubpixelGap = 0.2 [[ float min = 0.0, float max = 0.5, string label = "Subpixel Gap" ]],
+    float TripleGap = 0.1 [[ float min = 0.0, float max = 0.5, string label = "RGB Group Gap" ]],
+    float RowGap = 0.1 [[ float min = 0.0, float max = 0.5, string label = "Row Gap" ]],
+
+    // Sub-pixel controls
+    float SubpixelWidth = 1.0 [[ float min = 0.1, float max = 10.0, string label = "Subpixel Width" ]],
+    float Brightness = 1.0 [[ float min = 0.0, float max = 5.0, string label = "Brightness" ]],
+
+    // Display characteristics
+    float Contrast = 1.2 [[ float min = 0.5, float max = 2.0, string label = "Contrast" ]],
+    color BacklightColor = color(0.95, 0.98, 1.0) [[ string label = "Backlight Color" ]],
+    int PixelMode = 0 [[ string widget = "mapper", string options = "RGB Subpixels:0|Square Pixels:1", string label = "Pixel Mode" ]],
+    int SubpixelOrder = 0 [[ string widget = "mapper", string options = "RGB:0|BGR:1", string label = "Subpixel Order" ]],
+
+    // Output
+    output color OutColor = color(0.0, 0.0, 0.0)
+)
+{
+    // Calculate actual pixel size with multiplier
+    float finalPixelSize = PixelSizeValue * PixelSizeMultiplier;
+
+    // Get texture coordinates
+    float pixelU = u;
+    float pixelV = v;
+
+    // Apply the subpixel aspect ratio transformation
+    // Scale V coordinates differently to create rectangular subpixels
+    float scaleU = 100.0 / finalPixelSize;
+    float scaleV = 100.0 / (finalPixelSize * SubpixelAspect);
+
+    pixelU *= scaleU;
+    pixelV *= scaleV;
+
+    // Find the pixel position (in grid coordinates)
+    float pixelX = floor(pixelU);
+    float pixelY = floor(pixelV);
+
+    // Calculate the position within the current cell
+    float cellU = fmod(pixelU, 1.0);
+    float cellV = fmod(pixelV, 1.0);
+
+    // Sample the input color from pixel center
+    color centerColor = InputColor;
+
+    // Initialize result
+    color result = color(0.0, 0.0, 0.0);
+
+    if (PixelMode == 0) {
+        // RGB Subpixel Mode
+
+        // Determine the triplet group the pixel belongs to
+        float tripletGroupX = floor(pixelX / 3.0);
+
+        // Calculate position within a triplet group
+        float subPixelGroupU = fmod(pixelU, 3.0);
+        int subPixelIndex = int(subPixelGroupU);
+
+        // Determine if we're in a subpixel gap
+        float isSubpixelGap = 0.0;
+        if (cellU > (1.0 - SubpixelGap)) {
+            isSubpixelGap = 1.0;
+        }
+
+        // Determine if we're in a triplet gap
+        float isTripletGap = 0.0;
+        if (fmod(pixelX, 3.0) == 2.0 && cellU > (1.0 - TripleGap)) {
+            isTripletGap = 1.0;
+        }
+
+        // Determine if we're in a row gap
+        float isRowGap = 0.0;
+        if (cellV > (1.0 - RowGap)) {
+            isRowGap = 1.0;
+        }
+
+        // Calculate the combined gap
+        float isGap = max(max(isSubpixelGap, isTripletGap), isRowGap);
+
+        // Apply subpixel color based on position
+        if (isGap < 0.5) {
+            if (SubpixelOrder == 0) {
+                // RGB order
+                if (subPixelIndex == 0) {
+                    result.r = centerColor.r;
+                } else if (subPixelIndex == 1) {
+                    result.g = centerColor.g;
+                } else {
+                    result.b = centerColor.b;
+                }
+            } else {
+                // BGR order
+                if (subPixelIndex == 0) {
+                    result.b = centerColor.b;
+                } else if (subPixelIndex == 1) {
+                    result.g = centerColor.g;
+                } else {
+                    result.r = centerColor.r;
+                }
+            }
+        }
+    } else {
+        // Square Pixel Mode
+        float isGap = 0.0;
+
+        // Horizontal gap
+        if (cellU > (1.0 - RowGap)) {
+            isGap = 1.0;
+        }
+
+        // Vertical gap
+        if (cellV > (1.0 - RowGap)) {
+            isGap = 1.0;
+        }
+
+        if (isGap < 0.5) {
+            result = centerColor;
+        }
+    }
+
+    // Apply backlight and brightness
+    result *= BacklightColor * Brightness;
+
+    // Apply contrast
+    result = pow(max(result, 0.0), Contrast);
+
+    // Set the output value
+    OutColor = result;
+}
