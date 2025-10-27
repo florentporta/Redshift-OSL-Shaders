@@ -13,3 +13,4 @@ Feel free to use, modify, and share these shaders in your projects. Contribution
 Here's a brief overview of the shaders included in this collection:
 
 1. **LCD Screen** -  This shader simulates an LCD screen with realistic rectangular RGB subpixels and proper spacing between individual subpixels and RGB triplet groups.
+1. **CMYK Halftone** -  CMYK Halftone - This procedural shader converts any input texture into a four-colour (CMYK) offset print effect. It applies a customized halftone screen to each of the Cyan, Magenta, Yellow, and Black channels, allowing independent control over the screen angle (to prevent moiré patterns) and misregistration (plate offset) for an authentic, imperfect print look.
