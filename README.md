@@ -4,7 +4,7 @@ A collection of custom Open Shading Language (OSL) shaders for Redshift, designe
 
 ## Overview
 
-This repository contains custom OSL shaders developed for use with Redshift. They were developed with the help of Claude AI.
+This repository contains custom OSL shaders developed for use with Redshift. They were developed with the help of LLMs.
 
 Feel free to use, modify, and share these shaders in your projects. Contributions and feedback are always welcome!
 
