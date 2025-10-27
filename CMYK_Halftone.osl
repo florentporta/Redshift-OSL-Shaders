@@ -1,0 +1,121 @@
+/*
+ * OSL Shader: CMYK Offset Print Effect
+ * Author: Florent Porta + Gemini
+ * Version: 1.0
+ *
+ * This shader simulates an offset printing effect by converting
+ * an input texture to CMYK values, applying a rotated halftone
+ * screen to each channel, and allowing for misregistration (offset).
+ */
+
+shader rs_cmyk_halftone(
+    // --- Inputs ---
+    color In_Texture = color(1.0)
+        [[ string label = "Input Texture" ]],
+    
+    float In_Scale = 1.0
+        [[ string label = "Texture Scale (Tiling)", float min = 0.01, float max = 100.0 ]],
+        
+    float Frequency = 50.0
+        [[ string label = "Halftone Frequency (Dots)", float min = 1.0, float max = 500.0 ]],
+    
+    // --- Screen Angles ---
+    float C_Angle = 105.0 [[ string label = "Cyan Angle" ]],
+    float M_Angle = 75.0 [[ string label = "Magenta Angle" ]],
+    float Y_Angle = 90.0 [[ string label = "Yellow Angle" ]],
+    float K_Angle = 45.0 [[ string label = "Black Angle" ]],
+    
+    // --- Misregistration (Offset) ---
+    vector C_Offset = vector(0.0) [[ string label = "Cyan Offset" ]],
+    vector M_Offset = vector(0.0) [[ string label = "Magenta Offset" ]],
+    vector Y_Offset = vector(0.0) [[ string label = "Yellow Offset" ]],
+    vector K_Offset = vector(0.0) [[ string label = "Black Offset" ]],
+    
+    // --- Ink & Paper Colors ---
+    color Paper_Color = color(1.0) [[ string label = "Paper Color" ]],
+    color C_Ink = color(0.0, 1.0, 1.0) [[ string label = "Cyan Ink" ]],
+    color M_Ink = color(1.0, 0.0, 1.0) [[ string label = "Magenta Ink" ]],
+    color Y_Ink = color(1.0, 1.0, 0.0) [[ string label = "Yellow Ink" ]],
+    color K_Ink = color(0.0, 0.0, 0.0) [[ string label = "Black Ink" ]],
+
+    // --- Outputs ---
+    output color Out_Color = color(0.0)
+
+)
+{
+    // Get the standard UV coordinates
+    point uv = point(u * In_Scale, v * In_Scale, 0.0);
+
+    // --- Utility Function: 2D Rotation ---
+    // Rotates a 2D point (uv) around (0,0) by 'angle' degrees
+    point rotate(point uv_in, float angle)
+    {
+        float angle_rad = radians(angle);
+        float s = sin(angle_rad);
+        float c = cos(angle_rad);
+        
+        float u_new = uv_in[0] * c - uv_in[1] * s;
+        float v_new = uv_in[0] * s + uv_in[1] * c;
+        
+        return point(u_new, v_new, 0.0);
+    }
+
+    // --- Utility Function: Halftone Dot ---
+    // Calculates a circular dot based on frequency and ink value
+    // Returns 1.0 for ink, 0.0 for paper
+    float halftone_dot(point uv_in, float freq, float value)
+    {
+        point u_scaled = uv_in * freq;
+        point cell_uv = point(mod(u_scaled[0], 1.0), mod(u_scaled[1], 1.0), 0.0);
+        
+        // Calculate distance from the center of the cell (0.5, 0.5)
+        float dist_to_center = distance(cell_uv, point(0.5, 0.5, 0.0));
+        
+        // Calculate the dot radius threshold based on ink value
+        // Using sqrt(value) gives a more natural dot size progression
+        // 0.707 is sqrt(2)/2, the max distance from center to corner
+        float threshold = sqrt(value) * 0.707; 
+        
+        // Use smoothstep for anti-aliasing the dot edge
+        return 1.0 - smoothstep(threshold - 0.05, threshold + 0.05, dist_to_center);
+    }
+    
+    // --- Main Shader Logic ---
+    
+    // 1. Get Input Color (from texture)
+    color input_rgb = In_Texture;
+    
+    // 2. Convert RGB to CMYK values (simple, non-profiling conversion)
+    float k_val = 1.0 - max(input_rgb[0], max(input_rgb[1], input_rgb[2]));
+    // Add epsilon (1e-6) to prevent division by zero if K is 1 (pure black)
+    float denom = 1.0 - k_val + 1e-6; 
+    float c_val = (1.0 - input_rgb[0] - k_val) / denom;
+    float m_val = (1.0 - input_rgb[1] - k_val) / denom;
+    float y_val = (1.0 - input_rgb[2] - k_val) / denom;
+    
+    // 3. Apply rotation and offset for each channel
+    point uv_c = rotate(uv + C_Offset, C_Angle);
+    point uv_m = rotate(uv + M_Offset, M_Angle);
+    point uv_y = rotate(uv + Y_Offset, Y_Angle);
+    point uv_k = rotate(uv + K_Offset, K_Angle);
+    
+    // 4. Calculate the halftone dot for each channel
+    float c_dot = halftone_dot(uv_c, Frequency, c_val);
+    float m_dot = halftone_dot(uv_m, Frequency, m_val);
+    float y_dot = halftone_dot(uv_y, Frequency, y_val);
+    float k_dot = halftone_dot(uv_k, Frequency, k_val);
+    
+    // 5. Combine the layers (Subtractive Mixing)
+    // We start with paper color and multiply the inks over it.
+    // (1.0 - Ink_Color) is the "lightness" of the ink.
+    // (1.0 - dot * (1.0 - Ink_Color)) is the subtractive formula.
+    
+    color final_color = Paper_Color;
+    final_color *= (1.0 - c_dot * (1.0 - C_Ink));
+    final_color *= (1.0 - m_dot * (1.0 - M_Ink));
+    final_color *= (1.0 - y_dot * (1.0 - Y_Ink));
+    final_color *= (1.0 - k_dot * (1.0 - K_Ink));
+
+    // 6. Set the final output
+    Out_Color = final_color;
+}
